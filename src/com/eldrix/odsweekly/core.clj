@@ -112,6 +112,14 @@
           data (read-csv-file (.toFile path) (:headings f))]
       (d/transact! conn data))))
 
+(defn create-index
+  [^String f ^String api-key]
+  (let [downloaded (latest-release api-key)
+        conn (d/get-conn f schema)]
+    (import-ods-weekly conn downloaded)))
+
+
+
 (defn get-by-organisation-code
   "Return data on the 'organisation' specified. "
   [conn organisation-code]

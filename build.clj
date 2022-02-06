@@ -22,10 +22,10 @@
                 :version   version
                 :basis     jar-basis
                 :src-dirs  ["src"]
-                :scm       {:url                 "https://github.com/wardle/dmd"
+                :scm       {:url                 "https://github.com/wardle/ods-weekly"
                             :tag                 (str "v" version)
-                            :connection          "scm:git:git://github.com/wardle/dmd.git"
-                            :developerConnection "scm:git:ssh://git@github.com/wardle/dmd.git"}})
+                            :connection          "scm:git:git://github.com/wardle/ods-weekly.git"
+                            :developerConnection "scm:git:ssh://git@github.com/wardle/ods-weekly.git"}})
   (b/copy-dir {:src-dirs   ["src"]
                :target-dir class-dir})
   (b/jar {:class-dir class-dir

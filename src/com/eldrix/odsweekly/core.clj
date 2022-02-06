@@ -1,14 +1,17 @@
 (ns com.eldrix.odsweekly.core
   (:require [clojure.core.async :as a]
             [clojure.data.csv :as csv]
+            [clojure.spec.alpha :as s]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [com.eldrix.trud.core :as trud]
             [com.eldrix.trud.zip :as zf]
             [datalevin.core :as d])
-  (:import (java.nio.file Path)))
+  (:import (java.nio.file Path Paths)
+           (java.time LocalDateTime)))
 
 (def nhs-ods-weekly-item-identifier 58)
+(def store-version 1)
 
 (def n27-field-format
   "The standard ODS 27-field format headings"
@@ -62,7 +65,7 @@
              :amendedRecord            {:db/valueType :db.type/string}
              :currentOrg               {:db/valueType :db.type/string}})
 
-(defn available-releases
+(defn ^:private available-releases
   "Returns a sequence of releases from NHS Digital's TRUD service"
   [api-key]
   {:pre  [(string? api-key)]
@@ -76,49 +79,101 @@
    :post [(map? %)]}
   (->> (available-releases api-key) (sort-by :releaseDate) last))
 
-(defn download-latest-release
+(defn ^:private download-latest-release
   "Downloads the latest release, unzipping recursively.
-  Returns a java.nio.Path of the unzipped file."
+  Returns TRUD data about the release, including an additional key:
+  - :unzippedFilePath : a java.nio.Path of the unzipped file."
   [{:keys [api-key cache-dir] :as config}]
-  {:pre  [(string? api-key) (string? cache-dir)]
-   :post [(instance? Path %)]}
+  {:pre [(string? api-key) (string? cache-dir)]}
   (let [latest (trud/get-latest config nhs-ods-weekly-item-identifier)]
-    (zf/unzip-nested (:archiveFilePath latest))))
+    (assoc latest :unzippedFilePath (zf/unzip-nested (:archiveFilePath latest)))))
 
-(def ods-weekly-files
-  [{:type     :egpcur
-    :filename "Data/egpcur-zip/egpcur.csv"
-    :headings n27-field-format}
-   {:type     :epraccur
-    :filename "Data/epraccur-zip/epraccur.csv"
-    :headings n27-field-format}
-   {:type     :ebranchs
-    :filename "Data/ebranchs-zip/ebranchs.csv"
-    :headings n27-field-format}
-   {:type     :egmcmem
-    :filename "Data/egmcmem-zip/egmcmem.csv"
-    :headings [:gmc-reference-number :given-name :surname :gnc-prescriber-id :date]}])
+(def ^:private ods-weekly-files
+  [{:type        :egpcur
+    :description "Current GP Practitioners in England and Wales"
+    :filename    "Data/egpcur-zip/egpcur.csv"
+    :headings    n27-field-format}
+   {:type        :epraccur
+    :description "GP Practices in England and Wales"
+    :filename    "Data/epraccur-zip/epraccur.csv"
+    :headings    n27-field-format}
+   {:type        :ebranchs
+    :description "GP Branch Surgeries in England"
+    :filename    "Data/ebranchs-zip/ebranchs.csv"
+    :headings    n27-field-format}
+   {:type        :egmcmem
+    :description "A snapshot mapping, generated weekly, between General Medical Council (GMC) Reference Numbers and primary Prescriber Identifiers (otherwise known as GNC / GMP codes) for GPs."
+    :filename    "Data/egmcmem-zip/egmcmem.csv"
+    :headings    [:gmc-reference-number :given-name :surname :gnc-prescriber-id :date]}])
 
-(defn read-csv-file [x headings]
+(defn ^:private read-csv-file [x headings]
   (with-open [rdr (io/reader x)]
     (let [data (csv/read-csv rdr)]
       (mapv #(zipmap headings %) data))))
 
-(defn import-ods-weekly
+(defn ^:private import-ods-weekly
+  "Import ODS data to the database 'conn' from the path specified."
   [conn ^Path path]
   (doseq [f ods-weekly-files]
-    (println "Importing " (:type f))
+    (println "Importing " (:type f) ": " (:description f))
     (let [path (.resolve path ^String (:filename f))
           data (read-csv-file (.toFile path) (:headings f))]
-      (d/transact! conn data))))
+      (d/transact! conn (map #(assoc % :uk.nhs.ods/type (:type f)) data)))))
+
+(defn metadata
+  "Returns the metadata from the index specified."
+  [dir]
+  (d/with-conn [conn dir schema]
+    (->> (d/q '[:find [(pull ?e [*]) ...]
+                :where
+                [?e :metadata/created ?]]
+              (d/db conn))
+         (sort-by :metadata/created)
+         last)))
 
 (defn create-index
-  [^String f ^String api-key]
-  (let [downloaded (latest-release api-key)
-        conn (d/get-conn f schema)]
-    (import-ods-weekly conn downloaded)))
+  "Create an index with the latest distribution downloaded from TRUD.
+  Parameters:
+  - dir       : directory in which to create index
+  - api-key   : TRUD api-key
+  - cache-dir : TRUD cache directory
+  - nested?   : (default, true) - index to be created nested in 'dir'.
 
+  Returns a map containing the release information, including key:
+  - :indexDir - string representing location of index
 
+  By default, a new index will be created based on the release-date within the
+  directory `dir`. If `nested?` is false, the index will be created directly in
+  the `dir` specified."
+  [& {:keys [dir api-key cache-dir nested?] :or {dir "" nested? true} :as opts}]
+  (let [path (Paths/get dir (make-array String 0))
+        downloaded (download-latest-release {:api-key api-key :cache-dir cache-dir})
+        f (-> (if-not nested?
+                path
+                (.resolve path (str "ods-weekly-" (.toString (:releaseDate downloaded)) ".db")))
+              (.toAbsolutePath) (.toString))
+        existing (metadata f)]
+    (when existing
+      (throw (ex-info "Index already exists" {:indexDir f
+                                              :metadata existing})))
+    (d/with-conn [conn f schema]
+      (import-ods-weekly conn (:unzippedFilePath downloaded))
+      (d/transact! conn [{:db/id            -1              ;; store some metadata
+                          :metadata/version store-version
+                          :metadata/created (LocalDateTime/now)
+                          :metadata/release (:releaseDate downloaded)}])
+      (assoc downloaded :indexDir f))))
+
+(s/fdef create-index
+  :args (s/keys :req-un [::dir ::api-key ::cache-dir]
+                :opt-un [::nested?])
+  :ret map?)
+
+(defn open-index [dir]
+  (d/create-conn dir schema))
+
+(defn close-index [conn]
+  (d/close conn))
 
 (defn get-by-organisation-code
   "Return data on the 'organisation' specified. "
@@ -164,7 +219,7 @@
   joining a new one, and there is no overlap, then the current code will be
   retained and just the links within the data updated."
   [conn gmc-number]
-  {:pre [(string? gmc-number)]
+  {:pre  [(string? gmc-number)]
    :post [(seq %)]}
   (d/q '[:find [(pull ?e [*]) ...]
          :in $ ?gmc
@@ -177,29 +232,38 @@
   (def trud-api-key (str/trim-newline (slurp "/Users/mark/Dev/trud/api-key.txt")))
   (def config {:api-key trud-api-key :cache-dir "/Users/mark/Dev/trud/cache"})
   (available-releases trud-api-key)
-
-  (def data (read-csv-file "/var/folders/w_/s108lpdd1bn84sntjbghwz3w0000gn/T/trud10763576952452681518/Data/egpcur-zip/egpcur.csv"))
+  (latest-release trud-api-key)
+  (def data (read-csv-file "/var/folders/w_/s108lpdd1bn84sntjbghwz3w0000gn/T/trud10763576952452681518/Data/egpcur-zip/egpcur.csv"
+                           n27-field-format))
   (take 4 data)
   (download-latest-release config)
   (def conn (d/get-conn "ods-weekly.db" schema))
   (d/transact! conn data)
 
-  (import-ods-weekly conn (java.nio.file.Paths/get "/var/folders/w_/s108lpdd1bn84sntjbghwz3w0000gn/T/trud10763576952452681518"
-                                                   (make-array String 0)))
-
+  (import-ods-weekly conn (Paths/get "/var/folders/w_/s108lpdd1bn84sntjbghwz3w0000gn/T/trud10763576952452681518"
+                                     (make-array String 0)))
+  (create-index :dir "." :api-key trud-api-key :cache-dir "/Users/mark/Dev/trud/cache")
   (d/q '[:find [(pull ?e [*]) ...]
          :in $ ?name
          :where
          [?e :name ?name]]
        (d/db conn)
        "ALLISON JL")
+
   (d/q '[:find [(pull ?e [*]) ...]
          :in $ ?parent
          :where
+         [? :uk.nhs.ods/type :egpcur]
          [?e :parent ?parent]]
        (d/db conn)
        "W93036")
-
-  (map #(str "Dr. " (:given-name %) " " (:surname %)  ) (surgery-gps conn "W93036"))
+  (d/q '[:find [(pull ?e [*]) ...]
+         :in $ ?code
+         :where
+         [?e :organisationCode ?code]]
+       (d/db conn)
+       "W93036")
+  (surgery-gps conn "W93036")
+  (map #(str "Dr. " (:given-name %) " " (:surname %)) (surgery-gps conn "W93036"))
 
   )

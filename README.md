@@ -23,3 +23,55 @@ also map between GNC identifier and GMC, as one GP may have more than one GNC
 identifier if they have worked in multiple practices at the same time.
 
 It is advisable to create a new service every week based on the most recent published data. 
+
+# Creating an ods-weekly file-based database
+
+You can directly run from source using the clojure command line tools.
+If there is interest, I can provide a pre-built 'uberjar' containing 
+command-line tools and a simple HTTP server. My recommendation is to run from
+source, or embed as a library and use the clojure API.
+
+## Usage from source code
+
+1. Install clojure
+
+e.g. on Mac:
+```shell
+brew install clojure/tools/clojure
+```
+
+See the [Clojure getting started guide](https://clojure.org/guides/getting_started) for more details on installation.
+
+2. Clone the source code repository
+
+```shell
+git clone https://github.com/wardle/ods-weekly
+cd ods-weekly
+```
+
+3. Check you have an NHS Digital TRUD API key. 
+
+You can easily register and obtain an API key from [NHS Digital](https://isd.digital.nhs.uk/trud/users/guest/filters/0/api).
+
+Once you have an API key, put it into a text file in a well known location in your computer's filesystem.
+
+For example, trud-api-key.txt in the current directory.
+
+4. Download and create an index:
+
+```shell
+clj -X:download :api-key trud-api-key.txt
+```
+
+The optional parameters are:
+
+- :dir - specify the directory in which your index will be installed
+- :cache-dir - specify a well known location to act as a TRUD download cache
+
+For example:
+
+```shell
+clj -X:download :api-key trud-api-key.txt :dir /var/ods-weekly :cache-dir /var/cache/trud
+```
+
+

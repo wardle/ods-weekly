@@ -172,6 +172,18 @@
                 :opt-un [::nested?])
   :ret map?)
 
+
+(defn download
+  "Downloads the latest release to create a file-based database.
+  A function designed to used as exec-fn from deps.edn."
+  [{:keys [dir api-key cache-dir]}]
+  (when (str/blank? (str api-key))
+    (println "Error: Missing api-key. Usage: clj -X:download :api-key my-api-key.txt")
+    (System/exit 1))
+  (let [api-key' (str/trim-newline (slurp (str api-key)))]
+    (create-index :dir (str (or dir "")) :api-key api-key' :cache-dir (str (or cache-dir (System/getProperty "java.io.tmpdir"))))))
+
+
 (defn open-index
   "Open an index from the directory specified.
   The index must have been initialised and of the correct index version."

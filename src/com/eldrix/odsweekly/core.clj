@@ -123,13 +123,15 @@
 (defn metadata
   "Returns the metadata from the index specified."
   [dir]
-  (d/with-conn [conn dir schema]
-    (->> (d/q '[:find [(pull ?e [*]) ...]
-                :where
-                [?e :metadata/created ?]]
-              (d/db conn))
-         (sort-by :metadata/created)
-         last)))
+  (let [f (io/file dir)]
+    (when (and (.exists f) (.isDirectory f))
+      (d/with-conn [conn dir schema]
+        (->> (d/q '[:find [(pull ?e [*]) ...]
+                    :where
+                    [?e :metadata/created ?]]
+                  (d/db conn))
+             (sort-by :metadata/created)
+             last)))))
 
 (defn create-index
   "Create an index with the latest distribution downloaded from TRUD.
@@ -157,6 +159,7 @@
       (throw (ex-info "Index already exists" {:indexDir f
                                               :metadata existing})))
     (d/with-conn [conn f schema]
+      (println "Creating index:" f)
       (import-ods-weekly conn (:unzippedFilePath downloaded))
       (d/transact! conn [{:db/id            -1              ;; store some metadata
                           :metadata/version store-version
@@ -169,8 +172,15 @@
                 :opt-un [::nested?])
   :ret map?)
 
-(defn open-index [dir]
-  (d/create-conn dir schema))
+(defn open-index
+  "Open an index from the directory specified.
+  The index must have been initialised and of the correct index version."
+  [dir]
+  (let [metadata (metadata dir)]
+    (if-not (= store-version (:metadata/version metadata))
+      (throw (ex-info "Incorrect index version" {:expected store-version
+                                                 :got metadata}))
+      (d/create-conn dir schema))))
 
 (defn close-index [conn]
   (d/close conn))

@@ -74,4 +74,30 @@ For example:
 clj -X:download :api-key trud-api-key.txt :dir /var/ods-weekly :cache-dir /var/cache/trud
 ```
 
+This will download and create an index:
 
+```shell
+$ clj -X:download :api-key trud-api-key.txt
+
+Item already in cache {:itemIdentifier 58, :archiveFileName nhs_odsweekly_2.1.0_20220203000001.zip, :releaseDate #object[java.time.LocalDate 0x2ad51c20 2022-02-03]}
+Creating index: /Users/mark/Dev/ods-weekly/ods-weekly-2022-02-03.db
+Importing  :egpcur :  Current GP Practitioners in England and Wales
+Importing  :epraccur :  GP Practices in England and Wales
+Importing  :ebranchs :  GP Branch Surgeries in England
+Importing  :egmcmem :  A snapshot mapping, generated weekly, between General Medical Council (GMC) Reference Numbers and primary Prescriber Identifiers (otherwise known as GNC / GMP codes) for GPs.
+```
+
+Here you see that the tooling recognises that the release has already been downloaded and is in the local cache.
+The zip file is unzipped, and the files processed and imported into a file-based database.
+
+## Usage as a library
+
+Simply include the [library as a dependency](https://clojars.org/com.eldrix/ods-weekly).
+
+For example, in your clojure CLI/deps.edn file:
+
+```clojure
+com.eldrix/ods-weekly {:mvn/version "RELEASE"}
+```
+
+Documentation for the API is available.

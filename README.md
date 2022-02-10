@@ -6,6 +6,9 @@
 
 This is a small clojure (and java) library and microservice designed to support the UK ODS weekly prescribing data.
 
+It supplements the main ODS dataset, which you can easily make
+use of using [clods](https://github.com/wardle/clods).
+
 # Status
 
 This is incomplete; it can import data from TRUD and provides an easily searchable index, but the API

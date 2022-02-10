@@ -2,13 +2,15 @@
   (:require [clojure.core.async :as a]
             [clojure.data.csv :as csv]
             [clojure.spec.alpha :as s]
+            [clojure.pprint :as pp]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [com.eldrix.trud.core :as trud]
             [com.eldrix.trud.zip :as zf]
             [datalevin.core :as d])
   (:import (java.nio.file Path Paths)
-           (java.time LocalDateTime)))
+           (java.time LocalDateTime)
+           (java.time.format DateTimeFormatter)))
 
 (def nhs-ods-weekly-item-identifier 58)
 (def store-version 1)
@@ -158,14 +160,15 @@
     (when existing
       (throw (ex-info "Index already exists" {:indexDir f
                                               :metadata existing})))
-    (d/with-conn [conn f schema]
+    (let [conn (d/create-conn f schema)]
       (println "Creating index:" f)
       (import-ods-weekly conn (:unzippedFilePath downloaded))
-      (d/transact! conn [{:db/id            -1              ;; store some metadata
-                          :metadata/version store-version
+      (d/transact! conn [{:metadata/version store-version
                           :metadata/created (LocalDateTime/now)
                           :metadata/release (:releaseDate downloaded)}])
-      (assoc downloaded :indexDir f))))
+      (println "Finished writing index: " f)
+      (assoc downloaded :indexDir f)
+      (d/close conn))))
 
 (s/fdef create-index
   :args (s/keys :req-un [::dir ::api-key ::cache-dir]
@@ -183,6 +186,15 @@
   (let [api-key' (str/trim-newline (slurp (str api-key)))]
     (create-index :dir (str (or dir "")) :api-key api-key' :cache-dir (str (or cache-dir (System/getProperty "java.io.tmpdir"))))))
 
+(defn status
+  [{:keys [dir]}]
+  (when (str/blank? (str dir))
+    (println "Error: Missing dir. Usage: clj -X:status :dir my-ods-weekly.db")
+    (System/exit 1))
+  (let [md (metadata (str dir))]
+    (clojure.pprint/pprint {:version (:metadata/version md)
+                            :created (.format (DateTimeFormatter/ISO_LOCAL_DATE_TIME) (:metadata/created md))
+                            :release (.format (DateTimeFormatter/ISO_LOCAL_DATE) (:metadata/release md))})))
 
 (defn open-index
   "Open an index from the directory specified.
@@ -191,7 +203,7 @@
   (let [metadata (metadata dir)]
     (if-not (= store-version (:metadata/version metadata))
       (throw (ex-info "Incorrect index version" {:expected store-version
-                                                 :got metadata}))
+                                                 :got      metadata}))
       (d/create-conn dir schema))))
 
 (defn close-index [conn]
@@ -259,12 +271,24 @@
                            n27-field-format))
   (take 4 data)
   (download-latest-release config)
-  (def conn (d/get-conn "ods-weekly.db" schema))
-  (d/transact! conn data)
+  (def conn (d/get-conn "ods-weekly-2022-02-10.db" schema))
+  (d/transact! conn)
+  (d/transact! conn [{:db/id  -1
+                      :stupid 1
+                      :idiot  2
+                      :dummy  3}])
 
+  (d/transact! conn [{:db/id            -1
+                      :metadata/version store-version       ;; store some metadata
+                      :metadata/created (LocalDateTime/now)
+                      :metadata/release "ooo"}])
   (import-ods-weekly conn (Paths/get "/var/folders/w_/s108lpdd1bn84sntjbghwz3w0000gn/T/trud10763576952452681518"
                                      (make-array String 0)))
-  (create-index :dir "." :api-key trud-api-key :cache-dir "/Users/mark/Dev/trud/cache")
+  (d/q '[:find [(pull ?e [*]) ...]
+         :where
+         [?e :metadata/created ?]]
+       (d/db conn))
+  (create-index :api-key trud-api-key :cache-dir "/Users/mark/Dev/trud/cache")
   (d/q '[:find [(pull ?e [*]) ...]
          :in $ ?name
          :where

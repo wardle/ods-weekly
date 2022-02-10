@@ -62,13 +62,35 @@ For example, trud-api-key.txt in the current directory.
 
 4. Download and create an index:
 
+You can specify the name of the index, or specify the directory in which an
+automatically named index will be created. The default, if both are omitted,
+is to create an automatically named index in the current directory.
+
 ```shell
 clj -X:download :api-key trud-api-key.txt
 ```
 
+To create a specifically named index:
+```shell
+clj -X:download :api-key trud-api-key.txt :db my-ods-weekly.db
+```
+
+To create an automatically named index:
+```shell
+clj -X:download :api-key trud-api-key.txt :dir /var/db/ods-weekly/
+```
+This latter operation will create a database index in the directory specified
+with a name based on the release-date. This is ideal for use in a weekly 
+automated cron job, for example.
+
+The mandatory parameters are:
+
+- :api-key  - path to a text file containing your TRUD API key
+
 The optional parameters are:
 
 - :dir - specify the directory in which your index will be installed
+- :db  - specify the specify index to be created
 - :cache-dir - specify a well known location to act as a TRUD download cache
 
 For example:

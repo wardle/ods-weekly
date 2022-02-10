@@ -1,6 +1,5 @@
 (ns com.eldrix.odsweekly.core
-  (:require [clojure.core.async :as a]
-            [clojure.data.csv :as csv]
+  (:require [clojure.data.csv :as csv]
             [clojure.spec.alpha :as s]
             [clojure.pprint :as pp]
             [clojure.string :as str]
@@ -138,21 +137,21 @@
 (defn create-index
   "Create an index with the latest distribution downloaded from TRUD.
   Parameters:
-  - dir       : directory in which to create index
+  - dir       : directory in which to create automatically named index
+  - db        : specific path for index creation, if no 'dir' specified.
   - api-key   : TRUD api-key
   - cache-dir : TRUD cache directory
-  - nested?   : (default, true) - index to be created nested in 'dir'.
 
   Returns a map containing the release information, including key:
-  - :indexDir - string representing location of index
+  - :indexDir - string representing location of created index
 
   By default, a new index will be created based on the release-date within the
-  directory `dir`. If `nested?` is false, the index will be created directly in
-  the `dir` specified."
-  [& {:keys [dir api-key cache-dir nested?] :or {dir "" nested? true} :as opts}]
-  (let [path (Paths/get dir (make-array String 0))
+  directory `dir`. If `db` is specified, the index will be created directly
+  there instead."
+  [& {:keys [db dir api-key cache-dir] :or {dir ""} :as opts}]
+  (let [path (Paths/get (str (or db dir)) (make-array String 0))
         downloaded (download-latest-release {:api-key api-key :cache-dir cache-dir})
-        f (-> (if-not nested?
+        f (-> (if db
                 path
                 (.resolve path (str "ods-weekly-" (.toString (:releaseDate downloaded)) ".db")))
               (.toAbsolutePath) (.toString))
@@ -179,20 +178,22 @@
 (defn download
   "Downloads the latest release to create a file-based database.
   A function designed to used as exec-fn from deps.edn."
-  [{:keys [dir api-key cache-dir]}]
+  [{:keys [db dir api-key cache-dir] :as params}]
   (when (str/blank? (str api-key))
     (println "Error: Missing api-key. Usage: clj -X:download :api-key my-api-key.txt")
     (System/exit 1))
-  (let [api-key' (str/trim-newline (slurp (str api-key)))]
-    (create-index :dir (str (or dir "")) :api-key api-key' :cache-dir (str (or cache-dir (System/getProperty "java.io.tmpdir"))))))
+  (let [api-key' (str/trim-newline (slurp (str api-key)))
+        cache-dir (str (or cache-dir (System/getProperty "java.io.tmpdir")))]
+    (println "Creating index using cache directory: " cache-dir)
+    (create-index (assoc params :api-key api-key' :cache-dir cache-dir))))
 
 (defn status
-  [{:keys [dir]}]
-  (when (str/blank? (str dir))
-    (println "Error: Missing dir. Usage: clj -X:status :dir my-ods-weekly.db")
+  [{:keys [db]}]
+  (when (str/blank? (str db))
+    (println "Error: Missing dir. Usage: clj -X:status :db my-ods-weekly.db")
     (System/exit 1))
-  (let [md (metadata (str dir))]
-    (clojure.pprint/pprint {:version (:metadata/version md)
+  (let [md (metadata (str db))]
+    (pp/pprint {:version (:metadata/version md)
                             :created (.format (DateTimeFormatter/ISO_LOCAL_DATE_TIME) (:metadata/created md))
                             :release (.format (DateTimeFormatter/ISO_LOCAL_DATE) (:metadata/release md))})))
 

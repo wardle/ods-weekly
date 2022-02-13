@@ -14,17 +14,6 @@
            :dev
            {:extra-paths ["cmd" "test/src" "test/resources"]}
 
-           :run
-           {:extra-paths ["cmd"]
-            :extra-deps  {org.clojure/tools.cli          {:mvn/version "1.0.206"}
-                          io.pedestal/pedestal.service   {:mvn/version "0.5.10"}
-                          io.pedestal/pedestal.jetty     {:mvn/version "0.5.10"}
-                          ch.qos.logback/logback-classic {:mvn/version "1.2.10"}}
-            :main-opts   ["-m" "com.eldrix.dmd.cli"]
-            :jvm-opts    ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
-                          "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"
-                          "--illegal-access=permit"]}
-
            :download
            {:exec-fn com.eldrix.odsweekly.core/download
             :jvm-opts    ["--add-opens" "java.base/java.nio=ALL-UNNAMED"

@@ -1,6 +1,7 @@
+/.eastwood
 /.idea
 /.cpcache
-*.db
-*.iml
 /target
-.nrepl-port
+/*.db
+/*.iml
+/.nrepl-port

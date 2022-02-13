@@ -269,10 +269,16 @@
   [conn gmc-number]
   {:pre  [(string? gmc-number)]
    :post [(seq %)]}
-  (d/q '[:find [(pull ?e [*]) ...]
+  (d/q '[:find ?gmc ?given-name ?surname ?gnc-id ?surgery-id
+         :keys gmcReferenceNumber givenName surname gncPrescriberId surgeryId
          :in $ ?gmc
          :where
-         [?e :gmcReferenceNumber ?gmc]]
+         [?e :gmcReferenceNumber ?gmc]
+         [?e :gncPrescriberId ?gnc-id]
+         [?e :givenName ?given-name]
+         [?e :surname ?surname]
+         [?org :organisationCode ?gnc-id]
+         [?org :parent ?surgery-id]]
        (d/db conn)
        gmc-number))
 
@@ -327,6 +333,6 @@
   (map #(str "Dr. " (:given-name %) " " (:surname %)) (surgery-gps conn "W93036"))
 
   (def conn (open-index "ods-weekly-2022-02-10.db"))
-  (clojure.pprint/print-table [:gmc-reference-number :given-name :surname :gnc-prescriber-id] (surgery-gps conn "W93029"))
+  (clojure.pprint/print-table [:gmcReferenceNumber :givenName :surname :gncPrescriberId] (surgery-gps conn "W93029"))
 
                       )

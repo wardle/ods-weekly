@@ -44,29 +44,30 @@
    :nil
    :nil])
 
-(def schema {:organisationCode         {:db/valueType :db.type/string
-                                        :db/unique    :db.unique/identity}
-             :name                     {:db/valueType :db.type/string}
-             :nationalGrouping         {:db/valueType :db.type/string} ;; TODO: ?? reference type?
-             :highLevelHealthGeography {:db/valueType :db.type/string} ;; TODO: ?? reference type?
-             :address1                 {:db/valueType :db.type/string}
-             :address2                 {:db/valueType :db.type/string}
-             :address3                 {:db/valueType :db.type/string}
-             :address4                 {:db/valueType :db.type/string}
-             :address5                 {:db/valueType :db.type/string}
-             :postcode                 {:db/valueType :db.type/string}
-             :openDate                 {:db/valueType :db.type/string}
-             :closeDate                {:db/valueType :db.type/string}
-             :statusCode               {:db/valueType :db.type/string}
-             :subtype                  {:db/valueType :db.type/string}
-             :parent                   {:db/valueType :db.type/string} ;; TODO: change to reference
-             :joinParentDate           {:db/valueType :db.type/string}
-             :leftParentDate           {:db/valueType :db.type/string}
-             :telephone                {:db/valueType :db.type/string}
-             :amendedRecord            {:db/valueType :db.type/string}
-             :currentOrg               {:db/valueType :db.type/string}})
+(def ^:private
+  schema {:organisationCode         {:db/valueType :db.type/string
+                                     :db/unique    :db.unique/identity}
+          :name                     {:db/valueType :db.type/string}
+          :nationalGrouping         {:db/valueType :db.type/string} ;; TODO: ?? reference type?
+          :highLevelHealthGeography {:db/valueType :db.type/string} ;; TODO: ?? reference type?
+          :address1                 {:db/valueType :db.type/string}
+          :address2                 {:db/valueType :db.type/string}
+          :address3                 {:db/valueType :db.type/string}
+          :address4                 {:db/valueType :db.type/string}
+          :address5                 {:db/valueType :db.type/string}
+          :postcode                 {:db/valueType :db.type/string}
+          :openDate                 {:db/valueType :db.type/string}
+          :closeDate                {:db/valueType :db.type/string}
+          :statusCode               {:db/valueType :db.type/string}
+          :subtype                  {:db/valueType :db.type/string}
+          :parent                   {:db/valueType :db.type/string} ;; TODO: change to reference
+          :joinParentDate           {:db/valueType :db.type/string}
+          :leftParentDate           {:db/valueType :db.type/string}
+          :telephone                {:db/valueType :db.type/string}
+          :amendedRecord            {:db/valueType :db.type/string}
+          :currentOrg               {:db/valueType :db.type/string}})
 
-(defn ^:private available-releases
+(defn- available-releases
   "Returns a sequence of releases from NHS Digital's TRUD service"
   [api-key]
   {:pre  [(string? api-key)]
@@ -80,7 +81,7 @@
    :post [(map? %)]}
   (->> (available-releases api-key) (sort-by :releaseDate) last))
 
-(defn ^:private download-latest-release
+(defn- download-latest-release
   "Downloads the latest release, unzipping recursively.
   Returns TRUD data about the release, including an additional key:
   - :unzippedFilePath : a java.nio.Path of the unzipped file."
@@ -107,12 +108,12 @@
     :filename    "Data/egmcmem-zip/egmcmem.csv"
     :headings    [:gmc-reference-number :given-name :surname :gnc-prescriber-id :date]}])
 
-(defn ^:private read-csv-file [x headings]
+(defn- read-csv-file [x headings]
   (with-open [rdr (io/reader x)]
     (let [data (csv/read-csv rdr)]
       (mapv #(zipmap headings %) data))))
 
-(defn ^:private import-ods-weekly
+(defn- import-ods-weekly
   "Import ODS data to the database 'conn' from the path specified."
   [conn ^Path path]
   (doseq [f ods-weekly-files]
@@ -194,8 +195,8 @@
     (System/exit 1))
   (let [md (metadata (str db))]
     (pp/pprint {:version (:metadata/version md)
-                            :created (.format (DateTimeFormatter/ISO_LOCAL_DATE_TIME) (:metadata/created md))
-                            :release (.format (DateTimeFormatter/ISO_LOCAL_DATE) (:metadata/release md))})))
+                :created (.format (DateTimeFormatter/ISO_LOCAL_DATE_TIME) (:metadata/created md))
+                :release (.format (DateTimeFormatter/ISO_LOCAL_DATE) (:metadata/release md))})))
 
 (defn open-index
   "Open an index from the directory specified.

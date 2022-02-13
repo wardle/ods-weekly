@@ -9,7 +9,8 @@
             [clojure.java.io :as io]
             [com.eldrix.trud.core :as trud]
             [com.eldrix.trud.zip :as zf]
-            [datalevin.core :as d])
+            [datalevin.core :as d]
+            [clojure.pprint :as pprint])
   (:import (java.nio.file Path Paths)
            (java.time LocalDateTime)
            (java.time.format DateTimeFormatter)))
@@ -109,7 +110,7 @@
    {:type        :egmcmem
     :description "A snapshot mapping, generated weekly, between General Medical Council (GMC) Reference Numbers and primary Prescriber Identifiers (otherwise known as GNC / GMP codes) for GPs."
     :filename    "Data/egmcmem-zip/egmcmem.csv"
-    :headings    [:gmc-reference-number :given-name :surname :gnc-prescriber-id :date]}])
+    :headings    [:gmcReferenceNumber :givenName :surname :gncPrescriberId :date]}])
 
 (defn- read-csv-file [x headings]
   (with-open [rdr (io/reader x)]
@@ -151,7 +152,7 @@
 
   By default, a new index will be created based on the release-date within the
   directory `dir`. If `db` is specified, the index will be created directly
-  there instead."
+  there instead. If `dir` is omitted, the current directory will be used."
   [& {:keys [db dir api-key cache-dir] :or {dir ""}}]
   (let [path (Paths/get (str (or db dir)) (make-array String 0))
         downloaded (download-latest-release {:api-key api-key :cache-dir cache-dir})
@@ -171,11 +172,6 @@
                           :metadata/release (:releaseDate downloaded)}])
       (println "Finished writing index: " f)
       (d/close conn))))
-
-(s/fdef create-index
-  :args (s/keys :req-un [::dir ::api-key ::cache-dir]
-                :opt-un [::nested?])
-  :ret map?)
 
 (defn download
   "Downloads the latest release to create a file-based database.
@@ -252,7 +248,7 @@
   (d/q '[:find [(pull ?e [*]) ...]
          :in $ ?surgery-id
          :where
-         [?e :gnc-prescriber-id ?gnc-id]
+         [?e :gncPrescriberId ?gnc-id]
          [?gp :organisationCode ?gnc-id]
          [?gp :parent ?surgery-id]]
        (d/db conn)
@@ -276,7 +272,7 @@
   (d/q '[:find [(pull ?e [*]) ...]
          :in $ ?gmc
          :where
-         [?e :gmc-reference-number ?gmc]]
+         [?e :gmcReferenceNumber ?gmc]]
        (d/db conn)
        gmc-number))
 
@@ -330,4 +326,7 @@
   (surgery-gps conn "W93036")
   (map #(str "Dr. " (:given-name %) " " (:surname %)) (surgery-gps conn "W93036"))
 
-  )
+  (def conn (open-index "ods-weekly-2022-02-10.db"))
+  (clojure.pprint/print-table [:gmc-reference-number :given-name :surname :gnc-prescriber-id] (surgery-gps conn "W93029"))
+
+                      )

@@ -223,10 +223,10 @@
 (defn close-index [conn]
   (d/close conn))
 
-(defn get-by-organisation-code
+(defn get-organisation-by-code
   "Return data on the 'organisation' specified. "
   [conn organisation-code]
-  (d/q '[:find [(pull ?e [*]) ...]
+  (d/q '[:find (pull ?e [*]) .
          :in $ ?code
          :where
          [?e :organisationCode ?code]]

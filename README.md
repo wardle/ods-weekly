@@ -175,6 +175,7 @@ Result (although these data are public, I have redacted some of this information
 |               4*****7 |        S*** |   ****** |           G******3 |
 ```
 
+Further API documentation is [available](https://cljdoc.org/d/com.eldrix/ods-weekly).
 
 ## Development
 

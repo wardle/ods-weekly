@@ -1,4 +1,7 @@
 (ns com.eldrix.odsweekly.core
+  "ods-weekly is an NHS dataset that supplements the standard ODS dataset.
+  It principally links GP surgeries with general practitioners, with additional
+  tables to support the mapping of GP identifiers to GMC reference numbers."
   (:require [clojure.data.csv :as csv]
             [clojure.spec.alpha :as s]
             [clojure.pprint :as pp]
@@ -11,8 +14,8 @@
            (java.time LocalDateTime)
            (java.time.format DateTimeFormatter)))
 
-(def nhs-ods-weekly-item-identifier 58)
-(def store-version 1)
+(def ^:private nhs-ods-weekly-item-identifier 58)
+(def ^:private store-version 1)
 
 (def n27-field-format
   "The standard ODS 27-field format headings"
@@ -149,12 +152,12 @@
   By default, a new index will be created based on the release-date within the
   directory `dir`. If `db` is specified, the index will be created directly
   there instead."
-  [& {:keys [db dir api-key cache-dir] :or {dir ""} :as opts}]
+  [& {:keys [db dir api-key cache-dir] :or {dir ""}}]
   (let [path (Paths/get (str (or db dir)) (make-array String 0))
         downloaded (download-latest-release {:api-key api-key :cache-dir cache-dir})
         f (-> (if db
                 path
-                (.resolve path (str "ods-weekly-" (.toString (:releaseDate downloaded)) ".db")))
+                (.resolve path (str "ods-weekly-" (:releaseDate downloaded) ".db")))
               (.toAbsolutePath) (.toString))
         existing (metadata f)]
     (when existing
@@ -167,7 +170,6 @@
                           :metadata/created (LocalDateTime/now)
                           :metadata/release (:releaseDate downloaded)}])
       (println "Finished writing index: " f)
-      (assoc downloaded :indexDir f)
       (d/close conn))))
 
 (s/fdef create-index
@@ -175,11 +177,19 @@
                 :opt-un [::nested?])
   :ret map?)
 
-
 (defn download
   "Downloads the latest release to create a file-based database.
-  A function designed to used as exec-fn from deps.edn."
-  [{:keys [db dir api-key cache-dir] :as params}]
+  A function designed to used as an exec-fn from deps.edn.
+  Parameters:
+  - :db        - specific name for file-based database
+  - :dir       - directory in which a file-based database should be created
+  - :api-key   - filename of file containing TRUD API key
+  - :cache-dir - directory for TRUD cache.
+
+  The only mandatory parameter is api-key.
+  If ':db' and ':dir' are omitted, the current directory will be used.
+  If ':cache-dir' is omitted, a system 'tmp' directory will be used."
+  [{:keys [_db _dir api-key cache-dir] :as params}]
   (when (str/blank? (str api-key))
     (println "Error: Missing api-key. Usage: clj -X:download :api-key my-api-key.txt")
     (System/exit 1))
@@ -189,6 +199,10 @@
     (create-index (assoc params :api-key api-key' :cache-dir cache-dir))))
 
 (defn status
+  "Return the status of a specific ods-weekly index.
+  A function designed to used as an exec-fn from deps.edn.
+  Parameters:
+  - :db - path to index."
   [{:keys [db]}]
   (when (str/blank? (str db))
     (println "Error: Missing dir. Usage: clj -X:status :db my-ods-weekly.db")
@@ -199,14 +213,16 @@
                 :release (.format (DateTimeFormatter/ISO_LOCAL_DATE) (:metadata/release md))})))
 
 (defn open-index
-  "Open an index from the directory specified.
+  "Open an index.
+  Parameters:
+  - :db   - path to ods-weekly index
   The index must have been initialised and of the correct index version."
-  [dir]
-  (let [metadata (metadata dir)]
+  [db]
+  (let [metadata (metadata db)]
     (if-not (= store-version (:metadata/version metadata))
       (throw (ex-info "Incorrect index version" {:expected store-version
                                                  :got      metadata}))
-      (d/create-conn dir schema))))
+      (d/create-conn db schema))))
 
 (defn close-index [conn]
   (d/close conn))

@@ -335,4 +335,4 @@
   (def conn (open-index "ods-weekly-2022-02-10.db"))
   (clojure.pprint/print-table [:gmcReferenceNumber :givenName :surname :gncPrescriberId] (surgery-gps conn "W93029"))
 
-                      )
+  )

@@ -147,8 +147,8 @@
   - api-key   : TRUD api-key
   - cache-dir : TRUD cache directory
 
-  Returns a map containing the release information, including key:
-  - :indexDir - string representing location of created index
+  Returns information about the release, including keys:
+  - :indexFilename : filename of the newly created index
 
   By default, a new index will be created based on the release-date within the
   directory `dir`. If `db` is specified, the index will be created directly
@@ -165,13 +165,16 @@
       (throw (ex-info "Index already exists" {:indexDir f
                                               :metadata existing})))
     (let [conn (d/create-conn f schema)]
-      (println "Creating index:" f)
-      (import-ods-weekly conn (:unzippedFilePath downloaded))
-      (d/transact! conn [{:metadata/version store-version
-                          :metadata/created (LocalDateTime/now)
-                          :metadata/release (:releaseDate downloaded)}])
-      (println "Finished writing index: " f)
-      (d/close conn))))
+      (try
+        (println "Creating index:" f)
+        (import-ods-weekly conn (:unzippedFilePath downloaded))
+        (d/transact! conn [{:metadata/version store-version
+                            :metadata/created (LocalDateTime/now)
+                            :metadata/release (:releaseDate downloaded)}])
+        (println "Finished writing index: " f)
+        (assoc downloaded :index f)
+        (finally
+          (d/close conn))))))
 
 (defn download
   "Downloads the latest release to create a file-based database.

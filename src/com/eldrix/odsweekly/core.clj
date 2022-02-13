@@ -267,8 +267,6 @@
   joining a new one, and there is no overlap, then the current code will be
   retained and just the links within the data updated."
   [conn gmc-number]
-  {:pre  [(string? gmc-number)]
-   :post [(seq %)]}
   (d/q '[:find ?gmc ?given-name ?surname ?gnc-id ?surgery-id
          :keys gmcReferenceNumber givenName surname gncPrescriberId surgeryId
          :in $ ?gmc
@@ -280,7 +278,7 @@
          [?org :organisationCode ?gnc-id]
          [?org :parent ?surgery-id]]
        (d/db conn)
-       gmc-number))
+       (str gmc-number)))
 
 (comment
   (def trud-api-key (str/trim-newline (slurp "/Users/mark/Dev/trud/api-key.txt")))

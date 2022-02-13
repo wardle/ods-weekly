@@ -108,8 +108,12 @@ clj -X:download :api-key trud-api-key.txt :dir /var/ods-weekly :cache-dir /var/c
 This will download and create an index:
 
 ```shell
-$ clj -X:download :api-key trud-api-key.txt
+clj -X:download :api-key trud-api-key.txt
+```
 
+Result:
+
+```
 Item already in cache {:itemIdentifier 58, :archiveFileName nhs_odsweekly_2.1.0_20220203000001.zip, :releaseDate #object[java.time.LocalDate 0x2ad51c20 2022-02-03]}
 Creating index: /Users/mark/Dev/ods-weekly/ods-weekly-2022-02-03.db
 Importing  :egpcur :  Current GP Practitioners in England and Wales

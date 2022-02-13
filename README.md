@@ -135,7 +135,46 @@ For example, in your clojure CLI/deps.edn file:
 com.eldrix/ods-weekly {:mvn/version "RELEASE"}
 ```
 
-Documentation for the API is available.
+And then in your code (here is example usage from a REPL):
+```clojure
+(require '[com.eldrix.odsweekly.core :as ow])
+(def conn (ow/open-index "ods-weekly-2022-02-10.db"))
+```
+
+Now you can get information about an organisation:
+```clojure
+(ow/get-by-organisation-code conn "W93036")
+```
+
+Result (truncated):
+```clojure
+{:nationalGrouping "W00",
+ :highLevelHealthGeography "Q99",
+ :leftParentDate "",
+ :parent "7A6",
+ :address3 "MONMOUTH",
+ :telephone "01600 713811",
+ :name "CASTLE GATE MEDICAL PRACTICE",
+ :currentOrg "7A6"}
+```
+
+And let's fetch a list of GPs working at a different practice:
+
+```clojure
+(clojure.pprint/print-table [:gmcReferenceNumber :givenName :surname :gncPrescriberId] (ow/surgery-gps conn "W93029"))
+```
+
+Result (although these data are public, I have redacted some of this information):
+```clojure
+|   :gmcReferenceNumber | :givenName  | :surname |   :gncPrescriberId |
+|-----------------------+-------------+----------+--------------------|
+|               7*****7 |       L**** | ******** |           G******4 |
+|               6*****2 |     ******* |     R*** |           G******9 |
+|               4*****7 |       J**** |   ****** |           G******4 |
+|               7*****0 |    S******* |   ****** |           G******9 |
+|               4*****7 |        S*** |   ****** |           G******3 |
+```
+
 
 ## Development
 

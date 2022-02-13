@@ -9,10 +9,16 @@ This is a small clojure (and java) library and microservice designed to support 
 It supplements the main ODS dataset, which you can easily make
 use of using [clods](https://github.com/wardle/clods).
 
+# Why is this needed?
+
+The ODS dataset does not include a list of general practitioners for each GP surgery. Many applications need to make use of such data for handling clinical correspondence or determining a complete profile for a user.
+
+For example, I combine information from user directories and other stores with ods-weekly data, so that I can, in software, make reasonable assumptions about where a clinician works. Sometimes, that might just be to provide an excellent user experience by tuning or sorting pick-lists to the geography in which we think the user might work, but permitting overrides when necessary. I aggregate data from disparate data as part of a unified graph API. 
+
 # Status
 
-This is incomplete; it can import data from TRUD and provides an easily searchable index, but the API
-provided is not finished.
+This is now operational; it can import data from TRUD and provides an easily searchable index, and there is a simple API that can be used to
+fetch the GPs working at a specific surgery, or find where a particular GP is working, based on their GNC or GMC identifier.
 
 # Background
 
@@ -126,3 +132,22 @@ com.eldrix/ods-weekly {:mvn/version "RELEASE"}
 ```
 
 Documentation for the API is available.
+
+## Development
+
+Check for outdated dependencies
+```shell
+clj -M:outdated 
+```
+
+Build a library jar file
+
+```shell
+clj -T:build jar
+```
+
+Build and deploy a library jar file to clojars:
+
+```shell
+clj -T:build deploy
+```

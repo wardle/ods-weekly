@@ -15,15 +15,16 @@
            {:extra-paths ["cmd" "test/src" "test/resources"]}
 
            :download
-            :jvm-opts    ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
-                          "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"
-                          "--illegal-access=permit"]}
+           {:exec-fn  com.eldrix.odsweekly.core/download
+            :jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
+                       "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"
+                       "--illegal-access=permit"]}
 
            :status
-           {:exec-fn com.eldrix.odsweekly.core/status
-            :jvm-opts    ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
-                          "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"
-                          "--illegal-access=permit"]}
+           {:exec-fn  com.eldrix.odsweekly.core/status
+            :jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
+                       "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"
+                       "--illegal-access=permit"]}
 
            :socket
            {:jvm-opts ["-Dclojure.server.repl={:port,50505,:accept,clojure.core.server/repl}"]}

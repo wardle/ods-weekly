@@ -266,7 +266,7 @@
   a GP begins to work at further practices (i.e. is working within more than one
   simultaneously), the NHS Prescription Service allocate further codes not based
   on the DIN. A GP can therefore have multiple GNC codes, one for each practice
-  he works at simultaneously. If a GP completely leaves a practice before
+  they work at simultaneously. If a GP completely leaves a practice before
   joining a new one, and there is no overlap, then the current code will be
   retained and just the links within the data updated."
   [conn gmc-number]

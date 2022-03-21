@@ -4,7 +4,9 @@
            org.clojure/data.csv      {:mvn/version "1.0.0"}
            org.clojure/tools.logging {:mvn/version "1.2.4"}
            com.eldrix/trud           {:mvn/version "1.0.75"}
-           datalevin/datalevin       {:mvn/version "0.5.28"}}
+           datalevin/datalevin       {:mvn/version "0.5.28"}
+           com.wsscode/pathom3       {:mvn/version "2022.03.17-alpha"}}
+
 
  :aliases {:build
            {:deps       {io.github.clojure/tools.build {:git/tag "v0.8.1" :git/sha "7d40500"}

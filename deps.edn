@@ -42,6 +42,10 @@
            {:extra-deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
             :main-opts  ["-m" "antq.core"]}
 
+           :upgrade
+           {:extra-deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
+            :main-opts  ["-m" "antq.core" "--upgrade"]}
+
            :check
            {:extra-deps {athos/clj-check
                          {:git/url "https://github.com/athos/clj-check.git"

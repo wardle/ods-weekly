@@ -14,8 +14,8 @@
   The principal output format is a HL7 FHIR R4 Practitioner structure, but
   with namespaced keys to permit easy onward graph traversal.
   See https://simplifier.net/guide/UKNamingSystems/Home/Identifiersystems/IndexofIdentifierNamingsystems"
-  [{svc ::svc} {org-id :uk.nhs.fhir.Id/ods-organization-code}]
-  {::pco/input  [:uk.nhs.fhir.Id/ods-organization-code]
+  [{svc ::svc} {org-id :uk.nhs.fhir.Id/ods-organization}]
+  {::pco/input  [:uk.nhs.fhir.Id/ods-organization]
    ::pco/output [{:uk.nhs.ord/generalPractitioners
                   [{:org.hl7.fhir.Practitioner/identifier
                     [:org.hl7.fhir.Identifier/system :org.hl7.fhir.Identifier/value]}
@@ -45,7 +45,7 @@
   {::pco/input  [:uk.org.hl7.fhir.Id/gmc-number]
    ::pco/output [{:org.hl7.fhir.Practitioner/role
                   [:uk.org.hl7.fhir.Id/gmp-number
-                   {:org.hl7.fhir.PractitionerRole/organization [:uk.nhs.fhir.Id/ods-organization-code]}
+                   {:org.hl7.fhir.PractitionerRole/organization [:uk.nhs.fhir.Id/ods-organization]}
                    {:org.hl7.fhir.Practitioner/name [:org.hl7.fhir.HumanName/family
                                                      :org.hl7.fhir.HumanName/given]}]}]}
   (when-let [roles (seq (ow/gp-by-gmc-number svc gmc-number))]
@@ -53,7 +53,7 @@
      (->> roles
           (map (fn [gp]
                  {:uk.org.hl7.fhir.Id/gmp-number              (:gncPrescriberId gp)
-                  :org.hl7.fhir.PractitionerRole/organization {:uk.nhs.fhir.Id/ods-organization-code (:surgeryId gp)}
+                  :org.hl7.fhir.PractitionerRole/organization {:uk.nhs.fhir.Id/ods-organization (:surgeryId gp)}
                   :org.hl7.fhir.Practitioner/name             {:org.hl7.fhir.HumanName/family (:surname gp)
                                                                :org.hl7.fhir.HumanName/given  (:givenName gp)}})))}))
 
@@ -72,7 +72,7 @@
   (def registry (-> (pci/register all-resolvers)
                     (assoc ::svc conn)))
   (p.eql/process registry
-                 [{[:uk.nhs.fhir.Id/ods-organization-code "W93036"]
+                 [{[:uk.nhs.fhir.Id/ods-organization "W93036"]
                    [:uk.nhs.ord/generalPractitioners]}])
   (p.eql/process registry
                  [{[:uk.org.hl7.fhir.Id/gmc-number "7016404"]

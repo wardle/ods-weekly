@@ -5,3 +5,4 @@
 /*.db
 /*.iml
 /.nrepl-port
+.clj-kondo/

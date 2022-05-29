@@ -14,8 +14,8 @@
   The principal output format is a HL7 FHIR R4 Practitioner structure, but
   with namespaced keys to permit easy onward graph traversal.
   See https://simplifier.net/guide/UKNamingSystems/Home/Identifiersystems/IndexofIdentifierNamingsystems"
-  [{svc ::svc} {org-id :uk.nhs.fhir.Id/ods-organization}]
-  {::pco/input  [:uk.nhs.fhir.Id/ods-organization]
+  [{svc ::svc} {orgId :uk.nhs.ord/orgId}]
+  {::pco/input  [:uk.nhs.ord/orgId]
    ::pco/output [{:uk.nhs.ord/generalPractitioners
                   [{:org.hl7.fhir.Practitioner/identifier
                     [:org.hl7.fhir.Identifier/system :org.hl7.fhir.Identifier/value]}
@@ -26,7 +26,7 @@
                    :uk.org.hl7.fhir.Id/gmp-number
                    :uk.org.hl7.fhir.Id/gmc-number]}]}
   {:uk.nhs.ord/generalPractitioners
-   (->> (ow/surgery-gps svc org-id)
+   (->> (ow/surgery-gps svc (:uk.nhs.ord/extension orgId))
         (mapv (fn [gp]
                 {:uk.org.hl7.fhir.Id/gmp-number (:gncPrescriberId gp)
                  :uk.org.hl7.fhir.Id/gmc-number (:gmcReferenceNumber gp)
@@ -72,7 +72,7 @@
   (def registry (-> (pci/register all-resolvers)
                     (assoc ::svc conn)))
   (p.eql/process registry
-                 [{[:uk.nhs.fhir.Id/ods-organization "W93036"]
+                 [{[:uk.nhs.ord/orgId {:uk.nhs.ord/extension "W93036"}]
                    [:uk.nhs.ord/generalPractitioners]}])
   (p.eql/process registry
                  [{[:uk.org.hl7.fhir.Id/gmc-number "7016404"]

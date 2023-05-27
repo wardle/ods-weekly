@@ -4,7 +4,7 @@
 [![Scc Cocomo Badge](https://sloc.xyz/github/wardle/ods-weekly?category=cocomo&avg-wage=100000)](https://github.com/wardle/ods-weekly/)
 [![Clojars Project](https://img.shields.io/clojars/v/com.eldrix/ods-weekly.svg)](https://clojars.org/com.eldrix/ods-weekly)
 
-This is a small clojure (and java) library and microservice designed to support the UK ODS weekly prescribing data.
+This is a small Clojure (and Java) library and microservice designed to support the UK ODS weekly prescribing data.
 
 It supplements the main ODS dataset, which you can easily make
 use of using [clods](https://github.com/wardle/clods).

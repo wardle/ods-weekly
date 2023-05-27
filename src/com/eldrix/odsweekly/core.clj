@@ -8,7 +8,6 @@
             [clojure.string :as str]
             [clojure.java.io :as io]
             [com.eldrix.trud.core :as trud]
-            [com.eldrix.trud.zip :as zf]
             [datalevin.core :as d]
             [clojure.pprint :as pprint])
   (:import (java.nio.file Path Paths)
@@ -92,7 +91,7 @@
   [{:keys [api-key cache-dir] :as config}]
   {:pre [(string? api-key) (string? cache-dir)]}
   (let [latest (trud/get-latest config nhs-ods-weekly-item-identifier)]
-    (assoc latest :unzippedFilePath (zf/unzip-nested (:archiveFilePath latest)))))
+    (assoc latest :unzippedFilePath (trud/unzip-nested (:archiveFilePath latest)))))
 
 (def ^:private ods-weekly-files
   [{:type        :egpcur

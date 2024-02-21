@@ -3,72 +3,51 @@
   It principally links GP surgeries with general practitioners, with additional
   tables to support the mapping of GP identifiers to GMC reference numbers."
   (:require [clojure.data.csv :as csv]
-            [clojure.spec.alpha :as s]
             [clojure.pprint :as pp]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [com.eldrix.trud.core :as trud]
-            [datalevin.core :as d]
-            [clojure.pprint :as pprint])
+            [com.eldrix.zipf :as zf]
+            [next.jdbc :as jdbc]
+            [next.jdbc.result-set :as rs])
   (:import (java.nio.file Path Paths)
-           (java.time LocalDateTime)
-           (java.time.format DateTimeFormatter)))
+           (java.time LocalDateTime)))
 
 (def ^:private nhs-ods-weekly-item-identifier 58)
 (def ^:private store-version 1)
 
-(def n27-field-format
+(def ^:private n27-field-format
   "The standard ODS 27-field format headings"
-  [:organisationCode
-   :name
-   :nationalGrouping
-   :highLevelHealthGeography
-   :address1
-   :address2
-   :address3
-   :address4
-   :address5
-   :postcode
-   :openDate
-   :closeDate
-   :statusCode
-   :subtype
-   :parent
-   :joinParentDate
-   :leftParentDate
-   :telephone
-   :nil
-   :nil
-   :nil
-   :amendedRecord
-   :nil
-   :currentOrg
-   :nil
-   :nil
-   :nil])
+  [:organisationCode :name :nationalGrouping :highLevelHealthGeography
+   :address1 :address2 :address3 :address4 :address5 :postcode
+   :openDate :closeDate :statusCode :subtype :parent :joinParentDate :leftParentDate
+   :telephone :nil :nil :nil :amendedRecord :nil :currentOrg :nil :nil :nil])
 
-(def ^:private
-  schema {:organisationCode         {:db/valueType :db.type/string
-                                     :db/unique    :db.unique/identity}
-          :name                     {:db/valueType :db.type/string}
-          :nationalGrouping         {:db/valueType :db.type/string} ;; TODO: ?? reference type?
-          :highLevelHealthGeography {:db/valueType :db.type/string} ;; TODO: ?? reference type?
-          :address1                 {:db/valueType :db.type/string}
-          :address2                 {:db/valueType :db.type/string}
-          :address3                 {:db/valueType :db.type/string}
-          :address4                 {:db/valueType :db.type/string}
-          :address5                 {:db/valueType :db.type/string}
-          :postcode                 {:db/valueType :db.type/string}
-          :openDate                 {:db/valueType :db.type/string}
-          :closeDate                {:db/valueType :db.type/string}
-          :statusCode               {:db/valueType :db.type/string}
-          :subtype                  {:db/valueType :db.type/string}
-          :parent                   {:db/valueType :db.type/string} ;; TODO: change to reference
-          :joinParentDate           {:db/valueType :db.type/string}
-          :leftParentDate           {:db/valueType :db.type/string}
-          :telephone                {:db/valueType :db.type/string}
-          :amendedRecord            {:db/valueType :db.type/string}
-          :currentOrg               {:db/valueType :db.type/string}})
+(def ^:private n27-sql-fields
+  "(organisationCode text primary key, name text not null, nationalGrouping text, highLevelHealthGeography text,
+    address1 text, address2 text, address3 text, address4 text, address5 text, postcode text, openDate text, closeDate text,
+    statusCode text, subtype text, parent text, joinParentDate text, leftParentDate text, telephone text, amendedRecord text, currentOrg text)")
+
+(defn ^:private create-n27
+  [table-name]
+  (str "create table if not exists " table-name " " n27-sql-fields))
+
+(defn ^:private insert-n27
+  [table-name]
+  {:sql     (str "insert into " table-name " (organisationCode, name, nationalGrouping, highLevelHealthGeography,
+              address1, address2, address3, address4, address5, postcode, openDate, closeDate,
+              statusCode, subtype, parent, joinParentDate, leftParentDate, telephone, amendedRecord, currentOrg)
+              values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+              on conflict (organisationCode) do update set
+              name=excluded.name, nationalGrouping=excluded.nationalGrouping,
+              highLevelHealthGeography=excluded.highLevelHealthGeography,
+              address1=excluded.address1, address2=excluded.address2, address3=excluded.address3,
+              address4=excluded.address4, address5=excluded.address5, postcode=excluded.postcode,
+              openDate=excluded.openDate, closeDate=excluded.closeDate, statusCode=excluded.statusCode,
+              subtype=excluded.subtype, parent=excluded.parent, joinParentDate=excluded.joinParentDate,
+              telephone=excluded.telephone,amendedRecord=excluded.amendedRecord, currentOrg=excluded.currentOrg")
+   :data-fn (juxt :organisationCode :name :nationalGrouping :highLevelHealthGeography :address1 :address2 :address3 :address4 :address5 :postcode
+                  :openDate :closeDate :statusCode :subtype :parent :joinParentDate :leftParentDate :telephone :amendedRecord :currentOrg)})
 
 (defn- available-releases
   "Returns a sequence of releases from NHS Digital's TRUD service"
@@ -97,19 +76,54 @@
   [{:type        :egpcur
     :description "Current GP Practitioners in England and Wales"
     :filename    "Data/egpcur-zip/egpcur.csv"
-    :headings    n27-field-format}
+    :headings    n27-field-format
+    :create      (create-n27 "egpcur")
+    :insert      (insert-n27 "egpcur")}
    {:type        :epraccur
     :description "GP Practices in England and Wales"
     :filename    "Data/epraccur-zip/epraccur.csv"
-    :headings    n27-field-format}
+    :headings    n27-field-format
+    :create      (create-n27 "epraccur")
+    :insert      (insert-n27 "epraccur")}
    {:type        :ebranchs
     :description "GP Branch Surgeries in England"
     :filename    "Data/ebranchs-zip/ebranchs.csv"
-    :headings    n27-field-format}
+    :headings    n27-field-format
+    :create      (create-n27 "ebranchs")
+    :insert      (insert-n27 "ebranchs")}
    {:type        :egmcmem
-    :description "A snapshot mapping, generated weekly, between General Medical Council (GMC) Reference Numbers and primary Prescriber Identifiers (otherwise known as GNC / GMP codes) for GPs."
+    :description "Map between General Medical Council (GMC) Reference Numbers and primary Prescriber Identifiers (otherwise known as GNC / GMP codes) for GPs"
     :filename    "Data/egmcmem-zip/egmcmem.csv"
-    :headings    [:gmcReferenceNumber :givenName :surname :gncPrescriberId :date]}])
+    :headings    [:gmcReferenceNumber :givenName :surname :gncPrescriberId :date]
+    :create      "create table if not exists egmcmem (gmcReferenceNumber text primary key, givenName text, surname text, gncPrescriberId text unique, date text)"
+    :insert      {:sql     "insert into egmcmem (gmcReferenceNumber, givenName, surname, gncPrescriberId, date) values (?,?,?,?,?)
+                            on conflict (gmcReferenceNumber) do update set
+                            givenName=excluded.givenName, surname=excluded.surname,
+                            gncPrescriberId=excluded.gncPrescriberId, date=excluded.date"
+                  :data-fn (juxt :gmcReferenceNumber :givenName :surname :gncPrescriberId :date)}}])
+
+(defn- get-user-version
+  [conn]
+  (:user_version (jdbc/execute-one! conn ["SELECT * from pragma_user_version"] {:builder-fn rs/as-unqualified-maps})))
+
+(defn- set-user-version!
+  [conn v]
+  (jdbc/execute-one! conn [(str "PRAGMA user_version(" v ")")]))
+
+(defn open-sqlite
+  "Open a SQLite database from the file `f`. This can be anything coercible by
+  `clojure.java.io/file`"
+  [f]
+  (let [conn (jdbc/get-connection (str "jdbc:sqlite:" (.getCanonicalPath (io/as-file f))))
+        version (get-user-version conn)]
+    (when-not (= version store-version)
+      (throw (ex-info "Incompatible index version" {:expected store-version, :found version})))
+    conn))
+
+(defn- create-tables
+  [conn]
+  (jdbc/execute-one! conn ["create table if not exists metadata (created text, version integer, release text)"])
+  (run! #(jdbc/execute-one! conn [%]) (map :create ods-weekly-files)))
 
 (defn- read-csv-file [x headings]
   (with-open [rdr (io/reader x)]
@@ -119,26 +133,24 @@
 (defn- import-ods-weekly
   "Import ODS data to the database 'conn' from the path specified."
   [conn ^Path path]
-  (doseq [f ods-weekly-files]
-    (println "Importing " (:type f) ": " (:description f))
-    (let [path (.resolve path ^String (:filename f))
-          data (read-csv-file (.toFile path) (:headings f))]
-      (d/transact! conn (map #(assoc % :uk.nhs.ods/type (:type f)) data)))))
+  (doseq [{:keys [type filename description headings insert]} ods-weekly-files]
+    (println "Importing " (format "%-10s" type) ": " description)
+    (let [path (.resolve path ^String filename)
+          data (read-csv-file (.toFile path) headings)
+          {:keys [sql data-fn]} insert]
+      (jdbc/with-transaction [txn conn]
+        (jdbc/execute-one! txn [(str "delete from " (name type))]) ;; truncate table first
+        (jdbc/execute-batch! txn sql (map data-fn data) {}))))) ;; import in one transaction
 
-(defn metadata
-  "Returns the metadata from the index specified."
-  [dir]
-  (let [f (io/file dir)]
-    (when (and (.exists f) (.isDirectory f))
-      (d/with-conn [conn dir schema]
-        (->> (d/q '[:find [(pull ?e [*]) ...]
-                    :where
-                    [?e :metadata/created ?]]
-                  (d/db conn))
-             (sort-by :metadata/created)
-             last)))))
+(defn- metadata [f]
+  (with-open [conn (open-sqlite f)]
+    (jdbc/execute-one! conn ["select * from metadata order by created desc"])))
 
-(defn create-index
+(defn- write-metadata!
+  [conn release-date]
+  (jdbc/execute-one! conn ["insert into metadata (created,version,release) values (?,?,?)" (LocalDateTime/now) store-version release-date]))
+
+(defn- create-index
   "Create an index with the latest distribution downloaded from TRUD.
   Parameters:
   - dir       : directory in which to create automatically named index
@@ -158,22 +170,16 @@
         f (-> (if db
                 path
                 (.resolve path (str "ods-weekly-" (:releaseDate downloaded) ".db")))
-              (.toAbsolutePath) (.toString))
-        existing (metadata f)]
-    (when existing
-      (throw (ex-info "Index already exists" {:indexDir f
-                                              :metadata existing})))
-    (let [conn (d/create-conn f schema)]
-      (try
-        (println "Creating index:" f)
-        (import-ods-weekly conn (:unzippedFilePath downloaded))
-        (d/transact! conn [{:metadata/version store-version
-                            :metadata/created (LocalDateTime/now)
-                            :metadata/release (:releaseDate downloaded)}])
-        (println "Finished writing index: " f)
-        (assoc downloaded :index f)
-        (finally
-          (d/close conn))))))
+              (.toAbsolutePath) (.toFile))
+        exists? (.exists f)]
+    (with-open [conn (open-sqlite f)]
+      (if exists? (println "Updating existing index:" (str f)) (println "Creating index:" (str f)))
+      (create-tables conn)
+      (import-ods-weekly conn (:unzippedFilePath downloaded))
+      (write-metadata! conn (:releaseDate downloaded))
+      (set-user-version! conn store-version)
+      (println "Finished writing index: " (str f))
+      (assoc downloaded :index f))))
 
 (defn download
   "Downloads the latest release to create a file-based database.
@@ -193,7 +199,7 @@
     (System/exit 1))
   (let [api-key' (str/trim-newline (slurp (str api-key)))
         cache-dir (str (or cache-dir (System/getProperty "java.io.tmpdir")))]
-    (println "Creating index using cache directory: " cache-dir)
+    (println "Using cache directory  : " cache-dir)
     (create-index (assoc params :api-key api-key' :cache-dir cache-dir))))
 
 (defn status
@@ -203,12 +209,10 @@
   - :db - path to index."
   [{:keys [db]}]
   (when (str/blank? (str db))
-    (println "Error: Missing dir. Usage: clj -X:status :db my-ods-weekly.db")
+    (println "Error: Missing dir. Usage: clj -X:status :db '\"my-ods-weekly.db\"'")
     (System/exit 1))
   (let [md (metadata (str db))]
-    (pp/pprint {:version (:metadata/version md)
-                :created (.format (DateTimeFormatter/ISO_LOCAL_DATE_TIME) (:metadata/created md))
-                :release (.format (DateTimeFormatter/ISO_LOCAL_DATE) (:metadata/release md))})))
+    (pp/pprint md)))
 
 (defn open-index
   "Open an index.
@@ -220,41 +224,42 @@
     (if-not (= store-version (:metadata/version metadata))
       (throw (ex-info "Incorrect index version" {:expected store-version
                                                  :got      metadata}))
-      (d/create-conn db schema))))
+      (open-sqlite db))))
 
 (defn close-index [conn]
-  (d/close conn))
+  (.close conn))
 
 (defn get-organisation-by-code
   "Return data on the 'organisation' specified. "
   [conn organisation-code]
-  (d/q '[:find (pull ?e [*]) .
-         :in $ ?code
-         :where
-         [?e :organisationCode ?code]]
-       (d/db conn)
-       organisation-code))
+  (or (jdbc/execute-one! conn
+                         ["select * from epraccur where organisationCode=?" organisation-code]
+                         {:builder-fn rs/as-unqualified-maps})
+      (jdbc/execute-one! conn
+                         ["select * from ebranchs where organisationCode=?" organisation-code]
+                         {:builder-fn rs/as-unqualified-maps})
+      (jdbc/execute-one! conn
+                         ["select * from egpcur where organisationCode=?" organisation-code]
+                         {:builder-fn rs/as-unqualified-maps})))
 
 (defn get-by-name
   [conn s]
-  (d/q '[:find [(pull ?e [*]) ...]
-         :in $ ?name
-         :where
-         [?e :name ?name]]
-       (d/db conn)
-       s))
+  (or (jdbc/execute-one! conn
+                         ["select * from epraccur where name like ?" s]
+                         {:builder-fn rs/as-unqualified-maps})
+      (jdbc/execute-one! conn
+                         ["select * from ebranchs where name like ?" s]
+                         {:builder-fn rs/as-unqualified-maps})
+      (jdbc/execute-one! conn
+                         ["select * from egpcur where name like ?" s]
+                         {:builder-fn rs/as-unqualified-maps})))
 
 (defn surgery-gps
   "Returns a sequence of general practitioners in the surgery specified."
   [conn surgery-identifier]
-  (d/q '[:find [(pull ?e [*]) ...]
-         :in $ ?surgery-id
-         :where
-         [?e :gncPrescriberId ?gnc-id]
-         [?gp :organisationCode ?gnc-id]
-         [?gp :parent ?surgery-id]]
-       (d/db conn)
-       surgery-identifier))
+  (jdbc/execute! conn
+                 ["select * from egpcur left join egmcmem on gncPrescriberId=organisationCode where parent=?" surgery-identifier]
+                 {:builder-fn rs/as-unqualified-maps}))
 
 (defn gp-by-gmc-number
   "Return a sequence of GNC records for the GP with the given GMC number.
@@ -269,69 +274,23 @@
   joining a new one, and there is no overlap, then the current code will be
   retained and just the links within the data updated."
   [conn gmc-number]
-  (d/q '[:find ?gmc ?given-name ?surname ?gnc-id ?surgery-id
-         :keys gmcReferenceNumber givenName surname gncPrescriberId surgeryId
-         :in $ ?gmc
-         :where
-         [?e :gmcReferenceNumber ?gmc]
-         [?e :gncPrescriberId ?gnc-id]
-         [?e :givenName ?given-name]
-         [?e :surname ?surname]
-         [?org :organisationCode ?gnc-id]
-         [?org :parent ?surgery-id]]
-       (d/db conn)
-       (str gmc-number)))
+  (jdbc/execute! conn
+                 ["select * from egpcur,egmcmem where gncPrescriberId=organisationCode and gmcReferenceNumber=?" (str gmc-number)]
+                 {:builder-fn rs/as-unqualified-maps}))
 
 (comment
   (def trud-api-key (str/trim-newline (slurp "/Users/mark/Dev/trud/api-key.txt")))
   (def config {:api-key trud-api-key :cache-dir "/Users/mark/Dev/trud/cache"})
   (available-releases trud-api-key)
   (latest-release trud-api-key)
-  (def data (read-csv-file "/var/folders/w_/s108lpdd1bn84sntjbghwz3w0000gn/T/trud10763576952452681518/Data/egpcur-zip/egpcur.csv"
-                           n27-field-format))
+  (def latest (download-latest-release config))
+  (keys latest)
+  (def path (com.eldrix.zipf/unzip-nested (:archiveFilePath latest)))
+  path
+  (.resolve path "Data/egpcur-zip/egpcur.csv")
+  (def data (read-csv-file (.toFile (.resolve ^Path path "Data/egpcur-zip/egpcur.csv")) n27-field-format))
   (take 4 data)
-  (download-latest-release config)
-  (def conn (d/get-conn "ods-weekly-2022-02-10.db" schema))
-  (d/transact! conn)
-  (d/transact! conn [{:db/id  -1
-                      :stupid 1
-                      :idiot  2
-                      :dummy  3}])
 
-  (d/transact! conn [{:db/id            -1
-                      :metadata/version store-version       ;; store some metadata
-                      :metadata/created (LocalDateTime/now)
-                      :metadata/release "ooo"}])
-  (import-ods-weekly conn (Paths/get "/var/folders/w_/s108lpdd1bn84sntjbghwz3w0000gn/T/trud10763576952452681518"
-                                     (make-array String 0)))
-  (d/q '[:find [(pull ?e [*]) ...]
-         :where
-         [?e :metadata/created ?]]
-       (d/db conn))
-  (create-index :api-key trud-api-key :cache-dir "/Users/mark/Dev/trud/cache")
-  (d/q '[:find [(pull ?e [*]) ...]
-         :in $ ?name
-         :where
-         [?e :name ?name]]
-       (d/db conn)
-       "ALLISON JL")
-
-  (d/q '[:find [(pull ?e [*]) ...]
-         :in $ ?parent
-         :where
-         [? :uk.nhs.ods/type :egpcur]
-         [?e :parent ?parent]]
-       (d/db conn)
-       "W93036")
-  (d/q '[:find [(pull ?e [*]) ...]
-         :in $ ?code
-         :where
-         [?e :organisationCode ?code]]
-       (d/db conn)
-       "W93036")
-  (surgery-gps conn "W93036")
-  (map #(str "Dr. " (:given-name %) " " (:surname %)) (surgery-gps conn "W93036"))
-
-  (def conn (open-index "ods-weekly-2022-02-10.db"))
-  (clojure.pprint/print-table [:gmcReferenceNumber :givenName :surname :gncPrescriberId] (surgery-gps conn "W93029")))
+  (def conn (open-index "ods-weekly-2024-02-15.db"))
+  (clojure.pprint/print-table [:parent :organisationCode :name :gmcReferenceNumber :givenName :surname :gncPrescriberId] (surgery-gps conn "W93029")))
 

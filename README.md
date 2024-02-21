@@ -6,14 +6,20 @@
 
 This is a small Clojure (and Java) library and microservice designed to support the UK ODS weekly prescribing data.
 
-It supplements the main ODS dataset, which you can easily make
-use of using [clods](https://github.com/wardle/clods).
+It supplements the main ODS dataset, which you can easily make use of using [clods](https://github.com/wardle/clods).
+
+This library and service is a very thin wrapper around the original dataset. The data files are used to 
+create a SQLite file-based database, which can be accessed and queried directly with SQLite bindings (e.g. if you are
+using Python or R), or through the provided JVM API (e.g. via Clojure). `ods-weekly` takes a few seconds to import 
+and create the file-based database.
 
 # Why is this needed?
 
 The ODS dataset does not include a list of general practitioners for each GP surgery. Many applications need to make use of such data for handling clinical correspondence or determining a complete profile for a user.
 
-For example, I combine information from user directories and other stores with ods-weekly data, so that I can, in software, make reasonable assumptions about where a clinician works. Sometimes, that might just be to provide an excellent user experience by tuning or sorting pick-lists to the geography in which we think the user might work, but permitting overrides when necessary. I aggregate data from disparate data as part of a unified graph API. 
+For example, I combine information from user directories and other stores with ods-weekly data, so that I can, in software, make reasonable assumptions about where a clinician works. 
+Sometimes, that might just be to provide an excellent user experience by tuning or sorting pick-lists to the geography in which we think the user might work, but permitting overrides when necessary. 
+I aggregate data from disparate data as part of a unified graph API. 
 
 # Status
 
@@ -24,25 +30,26 @@ fetch the GPs working at a specific surgery, or find where a particular GP is wo
 
 This supplements the ODS quarterly and monthly releases made available via [https://github.com/wardle/clods](https://github.com/wardle/clods).
 
-It can create an immutable file-based database that can then be used within other applications to make use of NHS
+It can create a file-based database that can then be used within other applications to make use of NHS
 prescribing data. These data document surgeries and branch surgeries in the UK, with lists of general practitioners.
 
 Each practice has a list of general practitioners by GNC identifier. These data
 also map between GNC identifier and GMC, as one GP may have more than one GNC
 identifier if they have worked in multiple practices at the same time.
 
-It is advisable to create a new service every week based on the most recent published data. 
+It is advisable to create a new service every week based on the most recent published data. You can create a new index
+every week, or simply update an existing index.  
 
 # Creating an ods-weekly file-based database
 
-You can directly run from source using the clojure command line tools.
+You can directly run from source using the Clojure command line tools.
 If there is interest, I can provide a pre-built 'uberjar' containing 
 command-line tools and a simple HTTP server. My recommendation is to run from
 source, or embed as a library and use the clojure API.
 
 ## Usage from source code
 
-1. Install clojure
+1. Install Clojure
 
 e.g. on Mac:
 ```shell
@@ -80,6 +87,8 @@ To create a specifically named index:
 ```shell
 clj -X:download :api-key trud-api-key.txt :db my-ods-weekly.db
 ```
+If you run the latter command repeatedly (e.g. weekly in an automated cron job),
+then the data will be updated in place.
 
 To create an automatically named index:
 ```shell
@@ -87,7 +96,8 @@ clj -X:download :api-key trud-api-key.txt :dir /var/db/ods-weekly/
 ```
 This latter operation will create a database index in the directory specified
 with a name based on the release-date. This is ideal for use in a weekly 
-automated cron job, for example.
+automated cron job, for example in which you build a range of dated data files
+for subsequent analysis.
 
 The mandatory parameters are:
 

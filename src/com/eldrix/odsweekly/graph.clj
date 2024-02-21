@@ -66,7 +66,7 @@
 
 (comment
   (ow/download {:api-key "../trud/api-key.txt"})
-  (def conn (ow/open-index "ods-weekly-2022-03-17.db"))
+  (def conn (ow/open-index "ods-weekly-2024-02-15.db"))
   (ow/surgery-gps conn "W93036")
   (ow/gp-by-gmc-number conn "7016404")
   (def registry (-> (pci/register all-resolvers)

@@ -1,6 +1,6 @@
 # CHANGES
 
-## [v1.0.52] - 2024-02-21
+## [v1.0.54] - 2024-02-21
 
 * Switch to SQLite for backing database
 

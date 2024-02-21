@@ -141,7 +141,6 @@
           data (read-csv-file (.toFile path) headings)
           {:keys [sql data-fn]} insert]
       (jdbc/with-transaction [txn conn]
-        (jdbc/execute-one! txn [(str "delete from " (name type))]) ;; truncate table first
         (jdbc/execute-batch! txn sql (map data-fn data) {}))))) ;; import in one transaction
 
 (defn- metadata [f]
@@ -176,10 +175,10 @@
         exists? (.exists f)]
     (with-open [conn (open-sqlite f)]
       (if exists? (println "Updating existing index:" (str f)) (println "Creating index:" (str f)))
+      (set-user-version! conn store-version)
       (create-tables conn)
       (import-ods-weekly conn (:unzippedFilePath downloaded))
       (write-metadata! conn (:releaseDate downloaded))
-      (set-user-version! conn store-version)
       (println "Finished writing index: " (str f))
       (assoc downloaded :index f))))
 
@@ -222,11 +221,7 @@
   - :db   - path to ods-weekly index
   The index must have been initialised and of the correct index version."
   [db]
-  (let [metadata (metadata db)]
-    (if-not (= store-version (:metadata/version metadata))
-      (throw (ex-info "Incorrect index version" {:expected store-version
-                                                 :got      metadata}))
-      (open-sqlite db))))
+  (open-sqlite db))
 
 (defn close-index [conn]
   (.close conn))

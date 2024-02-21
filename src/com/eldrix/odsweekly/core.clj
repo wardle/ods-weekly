@@ -114,9 +114,11 @@
   "Open a SQLite database from the file `f`. This can be anything coercible by
   `clojure.java.io/file`"
   [f]
-  (let [conn (jdbc/get-connection (str "jdbc:sqlite:" (.getCanonicalPath (io/as-file f))))
+  (let [f' (io/as-file f)
+        exists (.exists f')
+        conn (jdbc/get-connection (str "jdbc:sqlite:" (.getCanonicalPath f')))
         version (get-user-version conn)]
-    (when-not (= version store-version)
+    (when (and exists (not= version store-version))
       (throw (ex-info "Incompatible index version" {:expected store-version, :found version})))
     conn))
 

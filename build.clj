@@ -25,7 +25,17 @@
                 :scm       {:url                 "https://github.com/wardle/ods-weekly"
                             :tag                 (str "v" version)
                             :connection          "scm:git:git://github.com/wardle/ods-weekly.git"
-                            :developerConnection "scm:git:ssh://git@github.com/wardle/ods-weekly.git"}})
+                            :developerConnection "scm:git:ssh://git@github.com/wardle/ods-weekly.git"}
+                :pom-data  [[:description "NHS ODS weekly prescribing-related data - General Medical Practitioners, General Medical Practices, Branch Surgeries, Pharmacy HQs and Dispensaries."]
+                            [:developers
+                             [:developer
+                              [:id "wardle"] [:name "Mark Wardle"] [:email "mark@wardle.org"] [:url "https://wardle.org"]]]
+                            [:organization [:name "Eldrix Ltd"]]
+                            [:licenses
+                             [:license
+                              [:name "Eclipse Public License v2.0"]
+                              [:url "https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.html"]
+                              [:distribution "repo"]]]]})
   (b/copy-dir {:src-dirs   ["src"]
                :target-dir class-dir})
   (b/jar {:class-dir class-dir

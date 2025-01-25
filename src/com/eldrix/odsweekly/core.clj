@@ -10,11 +10,16 @@
             [com.eldrix.zipf :as zf]
             [next.jdbc :as jdbc]
             [next.jdbc.result-set :as rs])
-  (:import (java.nio.file Path Paths)
+  (:import (java.io Closeable)
+           (java.nio.file Path Paths)
            (java.time LocalDateTime)))
 
 (def ^:private nhs-ods-weekly-item-identifier 58)
 (def ^:private store-version 1)
+
+(deftype Svc [ds]
+  Closeable
+  (close [_])) ;; NOP
 
 (def ^:private n27-field-format
   "The standard ODS 27-field format headings"
@@ -110,22 +115,22 @@
   [conn v]
   (jdbc/execute-one! conn [(str "PRAGMA user_version(" v ")")]))
 
-(defn open-sqlite
+(defn- get-datasource
   "Open a SQLite database from the file `f`. This can be anything coercible by
   `clojure.java.io/file`"
   [f]
   (let [f' (io/as-file f)
         exists (.exists f')
-        conn (jdbc/get-connection (str "jdbc:sqlite:" (.getCanonicalPath f')))
-        version (get-user-version conn)]
+        ds (jdbc/get-datasource (str "jdbc:sqlite:" (.getCanonicalPath f')))
+        version (get-user-version ds)]
     (when (and exists (not= version store-version))
       (throw (ex-info "Incompatible index version" {:expected store-version, :found version})))
-    conn))
+    ds))
 
 (defn- create-tables
-  [conn]
-  (jdbc/execute-one! conn ["create table if not exists metadata (created text, version integer, release text)"])
-  (run! #(jdbc/execute-one! conn [%]) (map :create ods-weekly-files)))
+  [ds]
+  (jdbc/execute-one! ds ["create table if not exists metadata (created text, version integer, release text)"])
+  (run! #(jdbc/execute-one! ds [%]) (map :create ods-weekly-files)))
 
 (defn- read-csv-file [x headings]
   (with-open [rdr (io/reader x)]
@@ -133,23 +138,23 @@
       (mapv #(zipmap headings %) data))))
 
 (defn- import-ods-weekly
-  "Import ODS data to the database 'conn' from the path specified."
-  [conn ^Path path]
+  "Import ODS data to the database 'ds' from the path specified."
+  [ds ^Path path]
   (doseq [{:keys [type filename description headings insert]} ods-weekly-files]
     (println "Importing " (format "%-10s" type) ": " description)
     (let [path (.resolve path ^String filename)
           data (read-csv-file (.toFile path) headings)
           {:keys [sql data-fn]} insert]
-      (jdbc/with-transaction [txn conn]
+      (jdbc/with-transaction [txn ds]
         (jdbc/execute-batch! txn sql (map data-fn data) {}))))) ;; import in one transaction
 
 (defn- metadata [f]
-  (with-open [conn (open-sqlite f)]
-    (jdbc/execute-one! conn ["select * from metadata order by created desc"])))
+  (with-open [ds (get-datasource f)]
+    (jdbc/execute-one! ds ["select * from metadata order by created desc"])))
 
 (defn- write-metadata!
-  [conn release-date]
-  (jdbc/execute-one! conn ["insert into metadata (created,version,release) values (?,?,?)" (LocalDateTime/now) store-version release-date]))
+  [ds release-date]
+  (jdbc/execute-one! ds ["insert into metadata (created,version,release) values (?,?,?)" (LocalDateTime/now) store-version release-date]))
 
 (defn- create-index
   "Create an index with the latest distribution downloaded from TRUD.
@@ -172,15 +177,24 @@
                 path
                 (.resolve path (str "ods-weekly-" (:releaseDate downloaded) ".db")))
               (.toAbsolutePath) (.toFile))
-        exists? (.exists f)]
-    (with-open [conn (open-sqlite f)]
-      (if exists? (println "Updating existing index:" (str f)) (println "Creating index:" (str f)))
+        exists? (.exists f)
+        ds (get-datasource f)]
+    (with-open [conn (jdbc/get-connection ds)]
+      (if exists?
+        (println "Updating existing index:" (str f))
+        (println "Creating index:" (str f)))
       (set-user-version! conn store-version)
       (create-tables conn)
       (import-ods-weekly conn (:unzippedFilePath downloaded))
       (write-metadata! conn (:releaseDate downloaded))
       (println "Finished writing index: " (str f))
       (assoc downloaded :index f))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; CLI API
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn download
   "Downloads the latest release to create a file-based database.
@@ -215,46 +229,55 @@
   (let [md (metadata (str db))]
     (pp/pprint md)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Clojure API
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defn open-index
-  "Open an index.
+  "Open an index, returning an opaque handle that supports java.io.Closeable.
   Parameters:
   - :db   - path to ods-weekly index
   The index must have been initialised and of the correct index version."
-  [db]
-  (open-sqlite db))
+  ^Closeable [db]
+  (->Svc (get-datasource db)))
 
-(defn close-index [conn]
-  (.close conn))
+(defn close-index
+  [^Svc svc]
+  (.close svc))
 
 (defn get-organisation-by-code
   "Return data on the 'organisation' specified. "
-  [conn organisation-code]
-  (or (jdbc/execute-one! conn
-                         ["select * from epraccur where organisationCode=?" organisation-code]
-                         {:builder-fn rs/as-unqualified-maps})
-      (jdbc/execute-one! conn
-                         ["select * from ebranchs where organisationCode=?" organisation-code]
-                         {:builder-fn rs/as-unqualified-maps})
-      (jdbc/execute-one! conn
-                         ["select * from egpcur where organisationCode=?" organisation-code]
-                         {:builder-fn rs/as-unqualified-maps})))
+  [svc organisation-code]
+  (with-open [conn (jdbc/get-connection (.-ds svc))]
+    (or (jdbc/execute-one! conn
+                           ["select * from epraccur where organisationCode=?" organisation-code]
+                           {:builder-fn rs/as-unqualified-maps})
+        (jdbc/execute-one! conn
+                           ["select * from ebranchs where organisationCode=?" organisation-code]
+                           {:builder-fn rs/as-unqualified-maps})
+        (jdbc/execute-one! conn
+                           ["select * from egpcur where organisationCode=?" organisation-code]
+                           {:builder-fn rs/as-unqualified-maps}))))
 
 (defn get-by-name
-  [conn s]
-  (or (jdbc/execute-one! conn
-                         ["select * from epraccur where name like ?" s]
-                         {:builder-fn rs/as-unqualified-maps})
-      (jdbc/execute-one! conn
-                         ["select * from ebranchs where name like ?" s]
-                         {:builder-fn rs/as-unqualified-maps})
-      (jdbc/execute-one! conn
-                         ["select * from egpcur where name like ?" s]
-                         {:builder-fn rs/as-unqualified-maps})))
+  [svc s]
+  (with-open [conn (jdbc/get-connection (.-ds svc))]
+    (or (jdbc/execute-one! conn
+                           ["select * from epraccur where name like ?" s]
+                           {:builder-fn rs/as-unqualified-maps})
+        (jdbc/execute-one! conn
+                           ["select * from ebranchs where name like ?" s]
+                           {:builder-fn rs/as-unqualified-maps})
+        (jdbc/execute-one! conn
+                           ["select * from egpcur where name like ?" s]
+                           {:builder-fn rs/as-unqualified-maps}))))
 
 (defn surgery-gps
   "Returns a sequence of general practitioners in the surgery specified."
-  [conn surgery-identifier]
-  (jdbc/execute! conn
+  [svc surgery-identifier]
+  (jdbc/execute! (.-ds svc)
                  ["select * from egpcur left join egmcmem on gncPrescriberId=organisationCode where parent=?" surgery-identifier]
                  {:builder-fn rs/as-unqualified-maps}))
 
@@ -270,8 +293,8 @@
   they work at simultaneously. If a GP completely leaves a practice before
   joining a new one, and there is no overlap, then the current code will be
   retained and just the links within the data updated."
-  [conn gmc-number]
-  (jdbc/execute! conn
+  [svc gmc-number]
+  (jdbc/execute! (.-ds svc)
                  ["select * from egpcur,egmcmem where gncPrescriberId=organisationCode and gmcReferenceNumber=?" (str gmc-number)]
                  {:builder-fn rs/as-unqualified-maps}))
 
@@ -288,6 +311,7 @@
   (def data (read-csv-file (.toFile (.resolve ^Path path "Data/egpcur-zip/egpcur.csv")) n27-field-format))
   (take 4 data)
 
-  (def conn (open-index "ods-weekly-2024-02-15.db"))
-  (clojure.pprint/print-table [:parent :organisationCode :name :gmcReferenceNumber :givenName :surname :gncPrescriberId] (surgery-gps conn "W93029")))
+  (def svc (open-index "ods-weekly-2024-02-15.db"))
+  (clojure.pprint/print-table [:parent :organisationCode :name :gmcReferenceNumber :givenName :surname :gncPrescriberId]
+                              (surgery-gps svc "W93029")))
 

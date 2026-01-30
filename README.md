@@ -168,7 +168,7 @@ Result (truncated):
  :currentOrg "7A6"}
 ```
 
-And let's fetch a list of GPs working at a different practice:
+And let's fetch a list of GPs working at a this practice:
 
 ```clojure
 (clojure.pprint/print-table [:gmcReferenceNumber :givenName :surname :gncPrescriberId] (ow/surgery-gps conn "W93029"))

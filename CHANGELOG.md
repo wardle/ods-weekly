@@ -1,5 +1,10 @@
 # CHANGES
 
+## [v1.0.55] - 2025-01-25
+
+* Avoid concurrent use of a single Connection by using an opaque service handle
+with a DataSource instead
+
 ## [v1.0.54] - 2024-02-21
 
 * Switch to SQLite for backing database

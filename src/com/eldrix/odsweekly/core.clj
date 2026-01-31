@@ -278,7 +278,7 @@
   "Returns a sequence of general practitioners in the surgery specified."
   [svc surgery-identifier]
   (jdbc/execute! (.-ds svc)
-                 ["select * from egpcur left join egmcmem on gncPrescriberId=organisationCode where parent=?" surgery-identifier]
+                 ["select * from egpcur left join egmcmem on gncPrescriberId=organisationCode where parent=? and statusCode='A'" surgery-identifier]
                  {:builder-fn rs/as-unqualified-maps}))
 
 (defn gp-by-gmc-number

@@ -27,18 +27,21 @@
                    :uk.org.hl7.fhir.Id/gmc-number]}]}
   {:uk.nhs.ord/generalPractitioners
    (->> (ow/surgery-gps svc (:uk.nhs.ord.orgId/extension orgId))
-        (mapv (fn [gp]
-                {:uk.org.hl7.fhir.Id/gmp-number (:gncPrescriberId gp)
-                 :uk.org.hl7.fhir.Id/gmc-number (:gmcReferenceNumber gp)
-                 :org.hl7.fhir.Practitioner/identifier
-                 [{:org.hl7.fhir.Identifier/system "https://fhir.hl7.org.uk/Id/gmp-number"
-                   :org.hl7.fhir.Identifier/value  (:gncPrescriberId gp)}
-                  {:org.hl7.fhir.Identifier/system "https://fhir.hl7.org.uk/Id/gmc-number"
-                   :org.hl7.fhir.Identifier/value  (:gmcReferenceNumber gp)}]
-                 :org.hl7.fhir.Practitioner/name
-                 {:org.hl7.fhir.HumanName/prefix ["Dr"]
-                  :org.hl7.fhir.HumanName/given  [(:givenName gp)]
-                  :org.hl7.fhir.HumanName/family (:surname gp)}})))})
+        (mapv (fn [{:keys [organisationCode gmcReferenceNumber givenName surname]}]
+                (cond-> {:uk.org.hl7.fhir.Id/gmp-number organisationCode
+                         :org.hl7.fhir.Practitioner/identifier
+                         (cond-> [{:org.hl7.fhir.Identifier/system "https://fhir.hl7.org.uk/Id/gmp-number"
+                                   :org.hl7.fhir.Identifier/value  organisationCode}]
+                           gmcReferenceNumber
+                           (conj {:org.hl7.fhir.Identifier/system "https://fhir.hl7.org.uk/Id/gmc-number"
+                                  :org.hl7.fhir.Identifier/value  gmcReferenceNumber}))}
+                  gmcReferenceNumber
+                  (assoc :uk.org.hl7.fhir.Id/gmc-number gmcReferenceNumber)
+                  (or givenName surname)
+                  (assoc :org.hl7.fhir.Practitioner/name
+                         (cond-> {:org.hl7.fhir.HumanName/prefix ["Dr"]}
+                           givenName (assoc :org.hl7.fhir.HumanName/given [givenName])
+                           surname (assoc :org.hl7.fhir.HumanName/family surname)))))))})
 
 (pco/defresolver gp-by-gmc->roles
   "Resolve roles for a general practitioner lookup by GMC number."
@@ -53,12 +56,12 @@
   (when-let [roles (seq (ow/gp-by-gmc-number svc gmc-number))]
     {:org.hl7.fhir.Practitioner/role
      (->> roles
-          (map (fn [gp]
-                 {:uk.org.hl7.fhir.Id/gmp-number              (:gncPrescriberId gp)
-                  :org.hl7.fhir.PractitionerRole/organization {:uk.nhs.fhir.Id/ods-organization (:surgeryId gp)}
+          (map (fn [{:keys [gncPrescriberId surgeryId surname givenName]}]
+                 {:uk.org.hl7.fhir.Id/gmp-number              gncPrescriberId
+                  :org.hl7.fhir.PractitionerRole/organization {:uk.nhs.fhir.Id/ods-organization surgeryId}
                   :org.hl7.fhir.Practitioner/name             {:org.hl7.fhir.HumanName/prefix ["Dr"]
-                                                               :org.hl7.fhir.HumanName/family (:surname gp)
-                                                               :org.hl7.fhir.HumanName/given  [(:givenName gp)]}})))}))
+                                                               :org.hl7.fhir.HumanName/family surname
+                                                               :org.hl7.fhir.HumanName/given  [givenName]}})))}))
 
 (def all-resolvers
   "UK ods-weekly resolvers; expect a key :com.eldrix.odsweekly.graph/svc in environment."

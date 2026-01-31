@@ -56,9 +56,9 @@
   (when-let [roles (seq (ow/gp-by-gmc-number svc gmc-number))]
     {:org.hl7.fhir.Practitioner/role
      (->> roles
-          (map (fn [{:keys [gncPrescriberId surgeryId surname givenName]}]
+          (map (fn [{:keys [gncPrescriberId parent surname givenName]}]
                  {:uk.org.hl7.fhir.Id/gmp-number              gncPrescriberId
-                  :org.hl7.fhir.PractitionerRole/organization {:uk.nhs.fhir.Id/ods-organization surgeryId}
+                  :org.hl7.fhir.PractitionerRole/organization {:uk.nhs.fhir.Id/ods-organization parent}
                   :org.hl7.fhir.Practitioner/name             {:org.hl7.fhir.HumanName/prefix ["Dr"]
                                                                :org.hl7.fhir.HumanName/family surname
                                                                :org.hl7.fhir.HumanName/given  [givenName]}})))}))

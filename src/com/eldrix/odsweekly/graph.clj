@@ -36,8 +36,8 @@
                   {:org.hl7.fhir.Identifier/system "https://fhir.hl7.org.uk/Id/gmc-number"
                    :org.hl7.fhir.Identifier/value  (:gmcReferenceNumber gp)}]
                  :org.hl7.fhir.Practitioner/name
-                 {:org.hl7.fhir.HumanName/prefix "Dr"
-                  :org.hl7.fhir.HumanName/given  (:givenName gp)
+                 {:org.hl7.fhir.HumanName/prefix ["Dr"]
+                  :org.hl7.fhir.HumanName/given  [(:givenName gp)]
                   :org.hl7.fhir.HumanName/family (:surname gp)}})))})
 
 (pco/defresolver gp-by-gmc->roles
@@ -56,9 +56,9 @@
           (map (fn [gp]
                  {:uk.org.hl7.fhir.Id/gmp-number              (:gncPrescriberId gp)
                   :org.hl7.fhir.PractitionerRole/organization {:uk.nhs.fhir.Id/ods-organization (:surgeryId gp)}
-                  :org.hl7.fhir.Practitioner/name             {:org.hl7.fhir.HumanName/prefix "Dr"
+                  :org.hl7.fhir.Practitioner/name             {:org.hl7.fhir.HumanName/prefix ["Dr"]
                                                                :org.hl7.fhir.HumanName/family (:surname gp)
-                                                               :org.hl7.fhir.HumanName/given  (:givenName gp)}})))}))
+                                                               :org.hl7.fhir.HumanName/given  [(:givenName gp)]}})))}))
 
 (def all-resolvers
   "UK ods-weekly resolvers; expect a key :com.eldrix.odsweekly.graph/svc in environment."
